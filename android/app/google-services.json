@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "31021274294",
+    "project_id": "transafe-e704c",
+    "storage_bucket": "transafe-e704c.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:31021274294:android:a5f3be4d941f12e2e14217",
+        "android_client_info": {
+          "package_name": "com.example.transafe"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "31021274294-n8oltq0akka3sp6u52dj5rg907fdqdi0.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAbsDTzby6eiQD_XJMPv5wwliKSpiP6Dbw"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "31021274294-n8oltq0akka3sp6u52dj5rg907fdqdi0.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
