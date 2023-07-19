@@ -8,24 +8,22 @@ import 'package:sklite/SVM/SVM.dart';
 import 'package:sklite/utils/io.dart';
 import 'dart:convert';
 import 'package:wakelock/wakelock.dart';
-import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:location/location.dart';
-import 'package:flutter_sms/flutter_sms.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
 
-class Screen2 extends StatefulWidget {
-  const Screen2({Key? key}) : super(key: key);
+class mainpred extends StatefulWidget {
+  const mainpred({Key? key}) : super(key: key);
 
   @override
-  _Screen2State createState() => _Screen2State();
+  _mainpredState createState() => _mainpredState();
 }
 
-class _Screen2State extends State<Screen2> {
-  // LocationData? _currentLocation;
-  // Location location = Location();
-
-  String driverId = '';
+class _mainpredState extends State<mainpred> {
+  late Stream<DocumentSnapshot> _rideStream;
+  late String _driverId;
+  bool _reachedDestination = false;
+  double percentage=100.0;
   bool reachedDestination = false;
   int safeCount = 0;
   int aggressiveCount = 0;
@@ -58,25 +56,27 @@ class _Screen2State extends State<Screen2> {
   @override
   void initState() {
     super.initState();
+    _driverId = getCurrentDriverId();
+    _rideStream = FirebaseFirestore.instance.collection('rides').doc('ESsJfkjGFRASotvFBna1').snapshots();
     Wakelock.enable(); // Enable wakelock
     loadModel("assets/transafe2.json").then((x) {
       setState(() {
         svc = SVC.fromMap(json.decode(x));
-        // _initializeLocation();
         startListeningSensors();
       });
     });
   }
 
-  void startListeningSensors() {
+
+  void startListeningSensors(){
     Stream<dynamic> sensorStream = StreamZip([userAccelerometerEvents, gyroscopeEvents]);
 
-    sensorStream.listen((sensorData) {
+    sensorStream.listen((sensorData){
       if (mounted) { // Check if the widget is still in the tree
         UserAccelerometerEvent accelerometerEvent = sensorData[0];
         GyroscopeEvent gyroscopeEvent = sensorData[1];
 
-        setState(() {
+        setState((){
           accX = accelerometerEvent.x;
           accY = accelerometerEvent.y;
           accZ = accelerometerEvent.z;
@@ -96,58 +96,6 @@ class _Screen2State extends State<Screen2> {
       }
     });
   }
-  // void _initializeLocation() async {
-  //   // Check if location services are enabled
-  //   bool _serviceEnabled = await location.serviceEnabled();
-  //   if (!_serviceEnabled) {
-  //     _serviceEnabled = await location.requestService();
-  //     if (!_serviceEnabled) {
-  //       // Location services are not enabled, handle it accordingly
-  //       return;
-  //     }
-  //   }
-  //
-  //   // Check if location permission is granted
-  //   PermissionStatus _permissionGranted = await location.hasPermission();
-  //   if (_permissionGranted == PermissionStatus.denied) {
-  //     _permissionGranted = await location.requestPermission();
-  //     if (_permissionGranted != PermissionStatus.granted) {
-  //       // Location permission is not granted, handle it accordingly
-  //       return;
-  //     }
-  //   }
-  //
-  //   // Start listening to location changes
-  //   location.onLocationChanged.listen((LocationData result) {
-  //     setState(() {
-  //       _currentLocation = result;
-  //     });
-  //   });
-  // }
-  // void _sendSMS(String message, List<String> recipients) async {
-  //   String result = await sendSMS(message: message, recipients: recipients)
-  //       .catchError((onError) {
-  //     print('Failed to send SMS: $onError');
-  //   });
-  //
-  //   print(result);
-  // }
-  // void _sendLocation() async {
-  //   if (_currentLocation != null) {
-  //     double latitude = _currentLocation!.latitude!;
-  //     double longitude = _currentLocation!.longitude!;
-  //
-  //     String message = 'My current location is: \nLatitude: $latitude\nLongitude: $longitude';
-  //     List<String> recipients = ['1234567890']; // Replace with desired mobile number(s)
-  //
-  //     _sendSMS(message, recipients);
-  //   } else {
-  //     // Location data is not available yet, handle it accordingly
-  //     print('Location data not available');
-  //   }
-  // }
-
-
 
   void updateData() {
     currentData[0] = accX;
@@ -161,6 +109,20 @@ class _Screen2State extends State<Screen2> {
     interaccgyro = dataQueue.toString();
     // print(dataQueue.length);
   }
+  String getCurrentDriverId(){
+    // Get the current user
+    User? user = FirebaseAuth.instance.currentUser;
+    if (user != null) {
+      // User is signed in, retrieve the driver ID from the user data
+      String driverId = user.uid;
+      print(driverId);
+      return driverId;
+    } else {
+      // User is not signed in, handle the case accordingly (e.g., return an empty string)
+      return '';
+    }
+  }
+
 
   void performStatisticalOperations() {
     for (var i = 0; i < NUM_COLUMNS; i++) {
@@ -184,6 +146,14 @@ class _Screen2State extends State<Screen2> {
     intermediatedata = inputdata.toString();
     // print(inputdata.length);
   }
+  void saveAggressiveRatePercentage(double percentage) {
+    FirebaseFirestore.instance
+        .collection('rides')
+        .doc('ESsJfkjGFRASotvFBna1')
+        .update({
+      'ridesMap.$_driverId.driverAggressiveRate': percentage,
+    });
+  }
 
   void makePrediction() {
     if (svc != null) {
@@ -198,7 +168,8 @@ class _Screen2State extends State<Screen2> {
         int totalCount = safeCount + aggressiveCount;
 
         _percentageSafe = ((safeCount / totalCount) * 100).toStringAsFixed(1) + '%';
-        _percentageAggressive = ((aggressiveCount / totalCount) * 100).toStringAsFixed(1) + '%';
+        percentage=((aggressiveCount / totalCount) * 100);
+        _percentageAggressive = percentage.toStringAsFixed(1)+ '%';
 
         if (prediction == 1)
           _prediction = 'Safe';
@@ -215,10 +186,10 @@ class _Screen2State extends State<Screen2> {
   @override
   void dispose() {
     updateTimer?.cancel();
-    Wakelock.disable(); // Disable wakelock
+    Wakelock.disable(); //
+    // Disable wakelock
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     Color predictionColor = Colors.white; // Default color
@@ -233,7 +204,7 @@ class _Screen2State extends State<Screen2> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Check Aggressiveness'),
+        title: const Text('Screen 2'),
       ),
       body: SingleChildScrollView(
         child: Center(
@@ -290,24 +261,74 @@ class _Screen2State extends State<Screen2> {
               Text(accelerometerValues),
               const SizedBox(height: 20),
               Text(gyroscopeValues),
-              const SizedBox(height: 60),
-              // ElevatedButton(
-              //   onPressed: _sendLocation,
-              //   child: Text('Send Location to emergency contact'),
-              //   style: ElevatedButton.styleFrom(
-              //     primary: Colors.red, // Red background color
-              //     onPrimary: Colors.white, // White text color
-              //     shape: RoundedRectangleBorder(
-              //       borderRadius: BorderRadius.circular(30), // Rounded corners
-              //     ),
-              //     padding: EdgeInsets.symmetric(horizontal: 30, vertical: 16), // Increased padding
-              //     textStyle: TextStyle(fontSize: 20), // Increased text size
-              //   ),
-              // ),
+              Column(
+                children: [
+                  StreamBuilder<DocumentSnapshot>(
+                    stream: _rideStream,
+                    builder: (context, snapshot) {
+                      if (snapshot.hasError) {
+                        return Text('Error: ${snapshot.error}');
+                      }
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return CircularProgressIndicator();
+                      }
+                      if (!snapshot.hasData) {
+                        return Text('No data found');
+                      }
+                      Map<String, dynamic>? ridesMap =
+                      snapshot.data?.get('ridesMap') as Map<String, dynamic>?;
+
+                      if (ridesMap == null) {
+                        return Text('No ride data found');
+                      }
+
+                      Map<String, dynamic>? selectedRideMap =
+                      ridesMap[_driverId] as Map<String, dynamic>?;
+
+                      if (selectedRideMap == null) {
+                        return Text('Selected ride not found');
+                      }
+
+                      _reachedDestination = selectedRideMap['reachedDestination'] ?? false;
+                      if (_reachedDestination) {
+                        saveAggressiveRatePercentage(percentage); // Save the aggressive rate percentage
+                      }
+
+                      return Container(
+                        margin: EdgeInsets.all(8.0),
+                        padding: EdgeInsets.all(16.0),
+                        decoration: BoxDecoration(
+                          border: Border.all(color: Colors.grey),
+                          borderRadius: BorderRadius.circular(8.0),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text(
+                                  'Reached Destination: ',
+                                  style: TextStyle(fontSize: 18.0),
+                                ),
+                                Icon(
+                                  _reachedDestination ? Icons.check_circle : Icons.cancel,
+                                  color: _reachedDestination ? Colors.green : Colors.red,
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+
             ],
           ),
         ),
       ),
     );
   }
+
 }
